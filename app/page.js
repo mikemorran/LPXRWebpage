@@ -1,6 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
-import io from "socket.io-client";
+import { useState, useEffect, useRef } from "react";
 
 const PASSWORD = "pass"; // Change this or use an env variable
 const LOCAL_STORAGE_KEY = "savedPrompts";
@@ -9,10 +8,10 @@ const INDEX_STORAGE_KEY = "currentPromptIndex";
 export default function Home() {
   const [passwordEntered, setPasswordEntered] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
-  const [socket, setSocket] = useState(null);
   const [prompts, setPrompts] = useState([""]);
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
+  const socketRef = useRef(null);
 
   useEffect(() => {
     const savedPrompts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || [""];
@@ -25,14 +24,37 @@ export default function Home() {
   useEffect(() => {
     if (passwordEntered) {
       const serverDomain = window.location.href.includes("localhost")
-        ? "http://localhost:4040/"
-        : "https://lpxrwebserver-4f50480a74b6.herokuapp.com/";
-      const newSocket = io("https://lpxrwebserver-4f50480a74b6.herokuapp.com/", { transports: ["websocket"] });
-      setSocket(newSocket);
-      newSocket.emit("loadPrompt", currentPrompt);
-      return () => newSocket.disconnect();
+        ? "ws://localhost:4040"
+        : "wss://lpxrwebserver-4f50480a74b6.herokuapp.com";
+
+      socketRef.current = new WebSocket(serverDomain);
+
+      socketRef.current.onopen = () => {
+        console.log("Connected to WebSocket server");
+        socketRef.current.send(JSON.stringify({ type: "loadPrompt", data: currentPrompt }));
+      };
+
+      socketRef.current.onmessage = (event) => {
+        console.log("Received message:", event.data);
+      };
+
+      socketRef.current.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+      };
+
+      socketRef.current.onclose = () => {
+        console.log("WebSocket connection closed");
+      };
+
+      return () => socketRef.current.close();
     }
   }, [passwordEntered]);
+
+  const sendMessage = (type, data) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type, data }));
+    }
+  };
 
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
@@ -50,7 +72,7 @@ export default function Home() {
     setPrompts(updatedPrompts);
     setCurrentPrompt(updatedPrompt);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedPrompts));
-    socket?.emit("updatePrompt", updatedPrompt);
+    sendMessage("updatePrompt", updatedPrompt);
   };
 
   const handleNext = () => {
@@ -58,7 +80,7 @@ export default function Home() {
     setCurrentIndex(nextIndex);
     setCurrentPrompt(prompts[nextIndex]);
     localStorage.setItem(INDEX_STORAGE_KEY, nextIndex);
-    socket?.emit("updatePrompt", prompts[nextIndex]);
+    sendMessage("updatePrompt", prompts[nextIndex]);
   };
 
   const handlePrevious = () => {
@@ -66,7 +88,7 @@ export default function Home() {
     setCurrentIndex(prevIndex);
     setCurrentPrompt(prompts[prevIndex]);
     localStorage.setItem(INDEX_STORAGE_KEY, prevIndex);
-    socket?.emit("updatePrompt", prompts[prevIndex]);
+    sendMessage("updatePrompt", prompts[prevIndex]);
   };
 
   const handleAddPrompt = () => {
@@ -77,7 +99,6 @@ export default function Home() {
     setCurrentPrompt("");
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newPrompts));
     localStorage.setItem(INDEX_STORAGE_KEY, newIndex);
-    // socket?.emit("updatePrompt", "");
   };
 
   const handleDeletePrompt = () => {
@@ -89,7 +110,7 @@ export default function Home() {
       setCurrentPrompt(newPrompts[newIndex] || "");
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newPrompts));
       localStorage.setItem(INDEX_STORAGE_KEY, newIndex);
-      socket?.emit("updatePrompt", newPrompts[newIndex] || "");
+      sendMessage("updatePrompt", newPrompts[newIndex] || "");
     }
   };
 
@@ -120,7 +141,7 @@ export default function Home() {
 
       <main className="text-center w-full max-w-2xl">
         <textarea
-          className=" text-white text-2xl outline-none border-none w-full text-center p-8 rounded-lg overflow-auto bg-opacity-55 bg-gray-900 "
+          className="text-white text-2xl outline-none border-none w-full text-center p-8 rounded-lg overflow-auto bg-opacity-55 bg-gray-900"
           style={{ minHeight: "200px", resize: "none" }}
           value={currentPrompt}
           onChange={handlePromptChange}
