@@ -1,101 +1,138 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
+import io from "socket.io-client";
+
+const PASSWORD = "pass"; // Change this or use an env variable
+const LOCAL_STORAGE_KEY = "savedPrompts";
+const INDEX_STORAGE_KEY = "currentPromptIndex";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [passwordEntered, setPasswordEntered] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [socket, setSocket] = useState(null);
+  const [prompts, setPrompts] = useState([""]);
+  const [currentPrompt, setCurrentPrompt] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const savedPrompts = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || [""];
+    const savedIndex = parseInt(localStorage.getItem(INDEX_STORAGE_KEY), 10) || 0;
+    setPrompts(savedPrompts.length > 0 ? savedPrompts : [""]);
+    setCurrentIndex(savedIndex < savedPrompts.length ? savedIndex : 0);
+    setCurrentPrompt(savedPrompts[savedIndex] || "");
+  }, []);
+
+  useEffect(() => {
+    if (passwordEntered) {
+      const serverDomain = window.location.href.includes("localhost")
+        ? "http://localhost:4040/"
+        : "https://thexport-backend-polling-app-f418a7b6128c.herokuapp.com/showcontrol";
+      const newSocket = io(serverDomain, { transports: ["websocket"] });
+      setSocket(newSocket);
+      newSocket.emit("loadPrompt", currentPrompt);
+      return () => newSocket.disconnect();
+    }
+  }, [passwordEntered]);
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (passwordInput === PASSWORD) {
+      setPasswordEntered(true);
+    } else {
+      alert("Incorrect password");
+    }
+  };
+
+  const handlePromptChange = (e) => {
+    const updatedPrompt = e.target.value;
+    let updatedPrompts = [...prompts];
+    updatedPrompts[currentIndex] = updatedPrompt;
+    setPrompts(updatedPrompts);
+    setCurrentPrompt(updatedPrompt);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedPrompts));
+    socket?.emit("updatePrompt", updatedPrompt);
+  };
+
+  const handleNext = () => {
+    let nextIndex = (currentIndex + 1) % prompts.length;
+    setCurrentIndex(nextIndex);
+    setCurrentPrompt(prompts[nextIndex]);
+    localStorage.setItem(INDEX_STORAGE_KEY, nextIndex);
+    socket?.emit("updatePrompt", prompts[nextIndex]);
+  };
+
+  const handlePrevious = () => {
+    const prevIndex = (currentIndex - 1 + prompts.length) % prompts.length;
+    setCurrentIndex(prevIndex);
+    setCurrentPrompt(prompts[prevIndex]);
+    localStorage.setItem(INDEX_STORAGE_KEY, prevIndex);
+    socket?.emit("updatePrompt", prompts[prevIndex]);
+  };
+
+  const handleAddPrompt = () => {
+    const newPrompts = [...prompts, ""];
+    setPrompts(newPrompts);
+    setCurrentIndex(newPrompts.length - 1);
+    setCurrentPrompt("");
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newPrompts));
+    localStorage.setItem(INDEX_STORAGE_KEY, newPrompts.length - 1);
+  };
+
+  const handleDeletePrompt = () => {
+    if (prompts.length > 1) {
+      const newPrompts = prompts.filter((_, index) => index !== currentIndex);
+      const newIndex = Math.max(0, currentIndex - 1);
+      setPrompts(newPrompts);
+      setCurrentIndex(newIndex);
+      setCurrentPrompt(newPrompts[newIndex] || "");
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newPrompts));
+      localStorage.setItem(INDEX_STORAGE_KEY, newIndex);
+    }
+  };
+
+  if (!passwordEntered) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-black">
+        <form onSubmit={handlePasswordSubmit} className="flex flex-col items-center">
+          <input
+            type="password"
+            placeholder="Enter password"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            className="p-2 border border-gray-600"
+          />
+          <button type="submit" className="mt-4 px-4 py-2 hover:bg-gray-600 text-white">
+            Enter
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen text-white">
+      <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+        <button onClick={handlePrevious} className="text-3xl">⬅</button>
+      </div>
+
+      <main className="text-center w-full max-w-2xl">
+        <textarea
+          className="bg-transparent text-white text-2xl outline-none border-none w-full text-center p-8 rounded-xl overflow-auto bg-gray-900 bg-opacity-55"
+          style={{ minHeight: "200px", resize: "none" }}
+          value={currentPrompt}
+          onChange={handlePromptChange}
+          autoFocus
+        />
+        <div className="mt-4 flex gap-2 items-center justify-center">
+          <span>Prompt {currentIndex + 1} of {prompts.length}</span>
+          <button onClick={handleAddPrompt} className="px-2 py-2 text-xl">+</button>
+          <button onClick={handleDeletePrompt} className="px-2 py-2 text-xl">-</button>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+        <button onClick={handleNext} className="text-3xl">➡</button>
+      </div>
     </div>
   );
 }
