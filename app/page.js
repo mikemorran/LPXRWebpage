@@ -26,8 +26,8 @@ export default function Home() {
     if (passwordEntered) {
       const serverDomain = window.location.href.includes("localhost")
         ? "http://localhost:4040/"
-        : "https://thexport-backend-polling-app-f418a7b6128c.herokuapp.com/showcontrol";
-      const newSocket = io(serverDomain, { transports: ["websocket"] });
+        : "https://lpxrwebserver-4f50480a74b6.herokuapp.com/";
+      const newSocket = io("https://lpxrwebserver-4f50480a74b6.herokuapp.com/", { transports: ["websocket"] });
       setSocket(newSocket);
       newSocket.emit("loadPrompt", currentPrompt);
       return () => newSocket.disconnect();
@@ -72,10 +72,12 @@ export default function Home() {
   const handleAddPrompt = () => {
     const newPrompts = [...prompts, ""];
     setPrompts(newPrompts);
-    setCurrentIndex(newPrompts.length - 1);
+    const newIndex = newPrompts.length - 1;
+    setCurrentIndex(newIndex);
     setCurrentPrompt("");
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newPrompts));
-    localStorage.setItem(INDEX_STORAGE_KEY, newPrompts.length - 1);
+    localStorage.setItem(INDEX_STORAGE_KEY, newIndex);
+    // socket?.emit("updatePrompt", "");
   };
 
   const handleDeletePrompt = () => {
@@ -87,6 +89,7 @@ export default function Home() {
       setCurrentPrompt(newPrompts[newIndex] || "");
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newPrompts));
       localStorage.setItem(INDEX_STORAGE_KEY, newIndex);
+      socket?.emit("updatePrompt", newPrompts[newIndex] || "");
     }
   };
 
@@ -111,27 +114,27 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-white">
-      <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-        <button onClick={handlePrevious} className="text-3xl">⬅</button>
+      <div className="absolute left-10 top-1/2 transform -translate-y-1/2">
+        <button onClick={handlePrevious} className="text-5xl">{`<`}</button>
       </div>
 
       <main className="text-center w-full max-w-2xl">
         <textarea
-          className="bg-transparent text-white text-2xl outline-none border-none w-full text-center p-8 rounded-xl overflow-auto bg-gray-900 bg-opacity-55"
+          className="bg-transparent text-white text-2xl outline-none border-none w-full text-center p-8 rounded-lg overflow-auto bg-gray-900"
           style={{ minHeight: "200px", resize: "none" }}
           value={currentPrompt}
           onChange={handlePromptChange}
           autoFocus
         />
         <div className="mt-4 flex gap-2 items-center justify-center">
+          <button onClick={handleAddPrompt} className="px-4 py-2">+</button>
+          <button onClick={handleDeletePrompt} className="px-4 py-2">-</button>
           <span>Prompt {currentIndex + 1} of {prompts.length}</span>
-          <button onClick={handleAddPrompt} className="px-2 py-2 text-xl">+</button>
-          <button onClick={handleDeletePrompt} className="px-2 py-2 text-xl">-</button>
         </div>
       </main>
 
-      <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-        <button onClick={handleNext} className="text-3xl">➡</button>
+      <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+        <button onClick={handleNext} className="text-5xl">{`>`}</button>
       </div>
     </div>
   );
