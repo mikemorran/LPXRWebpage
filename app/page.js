@@ -120,7 +120,7 @@ export default function Home() {
 
       <main className="text-center w-full max-w-2xl">
         <textarea
-          className="bg-transparent text-white text-2xl outline-none border-none w-full text-center p-8 rounded-lg overflow-auto bg-gray-900"
+          className=" text-white text-2xl outline-none border-none w-full text-center p-8 rounded-lg overflow-auto bg-opacity-55 bg-gray-900 "
           style={{ minHeight: "200px", resize: "none" }}
           value={currentPrompt}
           onChange={handlePromptChange}
