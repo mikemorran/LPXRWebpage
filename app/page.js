@@ -38,6 +38,13 @@ export default function Home() {
         console.log("Received message:", event.data);
       };
 
+      socketRef.current.onmessage = (event) => {
+        console.log("Received message:", event.data);
+        if (event.data === "ping") {
+            socketRef.current.send("pong"); // Respond to ping
+        }
+    };
+
       socketRef.current.onerror = (error) => {
         console.error("WebSocket Error:", error);
       };
